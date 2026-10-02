@@ -773,3 +773,87 @@ TEST_F(EmulatorSettingsTest, DestructorNoSaveIfLoadNeverCalled) {
     auto t1 = fs::last_write_time(ConfigJson());
     EXPECT_EQ(t0, t1) << "Destructor wrote config.json without a prior Load()";
 }
+
+// Built-in per-game compatibility settings
+
+TEST_F(EmulatorSettingsTest, BuiltInGameConfigAppliedWithoutUserFile) {
+    temp_settings->SetDirectMemoryAccessEnabled(false);
+    temp_settings->SetRedZonePatchingEnabled(false);
+    temp_settings->SetPipelineCacheEnabled(false);
+
+    // No custom config on disk, so Load still reports that no user file was used.
+    EXPECT_FALSE(temp_settings->Load("CUSA02320"));
+    EXPECT_FALSE(EmulatorState::GetInstance()->IsGameSpecifigConfigUsed());
+
+    temp_settings->SetConfigMode(ConfigMode::Default);
+    EXPECT_TRUE(temp_settings->IsDirectMemoryAccessEnabled());
+    EXPECT_TRUE(temp_settings->IsRedZonePatchingEnabled());
+    EXPECT_TRUE(temp_settings->IsPipelineCacheEnabled());
+
+    // Built-in values are game-specific and never leak into the global base values.
+    temp_settings->SetConfigMode(ConfigMode::Global);
+    EXPECT_FALSE(temp_settings->IsDirectMemoryAccessEnabled());
+    EXPECT_FALSE(temp_settings->IsRedZonePatchingEnabled());
+    EXPECT_FALSE(temp_settings->IsPipelineCacheEnabled());
+}
+
+TEST_F(EmulatorSettingsTest, BuiltInGameConfigCoversAllRegions) {
+    for (const char* serial : {"CUSA02320", "CUSA02343", "CUSA02344", "CUSA02826"}) {
+        temp_settings->Load(serial);
+        temp_settings->SetConfigMode(ConfigMode::Default);
+        EXPECT_TRUE(temp_settings->IsDirectMemoryAccessEnabled()) << serial;
+    }
+}
+
+TEST_F(EmulatorSettingsTest, UserGameConfigOverridesBuiltInGameConfig) {
+    json game;
+    game["GPU"]["direct_memory_access_enabled"] = false;
+    WriteJson(GameConfig("CUSA02320"), game);
+
+    ASSERT_TRUE(temp_settings->Load("CUSA02320"));
+    temp_settings->SetConfigMode(ConfigMode::Default);
+    EXPECT_FALSE(temp_settings->IsDirectMemoryAccessEnabled());
+    // Keys the user did not set keep the built-in value.
+    EXPECT_TRUE(temp_settings->IsPipelineCacheEnabled());
+}
+
+TEST_F(EmulatorSettingsTest, BuiltInGameConfigClearedWhenLoadingOtherGame) {
+    temp_settings->Load("CUSA02320");
+    temp_settings->Load("CUSA01234");
+    temp_settings->SetConfigMode(ConfigMode::Default);
+    EXPECT_FALSE(temp_settings->IsDirectMemoryAccessEnabled());
+    EXPECT_FALSE(temp_settings->IsRedZonePatchingEnabled());
+}
+
+TEST_F(EmulatorSettingsTest, LegacyRedZoneKeyIsGameSpecific) {
+    json game;
+    game["WindowsGuestRedZoneProtection"]["windows_guest_red_zone_protection_mode"] =
+        "StaticPatching";
+    WriteJson(GameConfig("CUSA01234"), game);
+
+    ASSERT_TRUE(temp_settings->Load("CUSA01234"));
+    temp_settings->SetConfigMode(ConfigMode::Default);
+    EXPECT_TRUE(temp_settings->IsRedZonePatchingEnabled());
+
+    // The legacy key must not change the global value that is saved to config.json.
+    temp_settings->SetConfigMode(ConfigMode::Global);
+    EXPECT_FALSE(temp_settings->IsRedZonePatchingEnabled());
+    temp_settings->Save();
+    EXPECT_FALSE(ReadJson(ConfigJson())["General"]["redzone_patches"].get<bool>());
+
+    temp_settings->Load("CUSA99999");
+    temp_settings->SetConfigMode(ConfigMode::Default);
+    EXPECT_FALSE(temp_settings->IsRedZonePatchingEnabled());
+}
+
+TEST_F(EmulatorSettingsTest, LegacyRedZoneKeyDoesNotOverrideNewKey) {
+    json game;
+    game["General"]["redzone_patches"] = false;
+    game["WindowsGuestRedZoneProtection"]["windows_guest_red_zone_protection_mode"] =
+        "StaticPatching";
+    WriteJson(GameConfig("CUSA01234"), game);
+
+    temp_settings->Load("CUSA01234");
+    temp_settings->SetConfigMode(ConfigMode::Default);
+    EXPECT_FALSE(temp_settings->IsRedZonePatchingEnabled());
+}

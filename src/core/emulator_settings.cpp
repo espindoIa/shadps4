@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <iomanip>
 #include <map>
+#include <string_view>
 #include <common/path_util.h>
 #include <common/scm_rev.h>
 #include <toml.hpp>
@@ -87,6 +89,54 @@ std::optional<T> get_optional(const toml::value& v, const std::string& key) {
 } // namespace toml
 
 // ── Helpers ───────────────────────────────────────────────────────────
+
+namespace {
+
+/// Per-game settings that a title needs in order to boot or run correctly. They are applied as
+/// game-specific values before the user's own per-game config, so the user can still override
+/// any of them from custom_configs/<serial>.json.
+const json* FindBuiltInGameConfig(std::string_view serial) {
+    // Uncharted: The Nathan Drake Collection
+    // - Compute shaders issue dynamic ReadConst loads that hang the GPU without DMA.
+    // - A guest leaf function keeps live data in the SysV red zone, which Windows exception
+    //   dispatch clobbers, crashing the main menu.
+    // - Shader compilation stalls make the GPU thread fall behind the game's EOP tick checks, so
+    //   persist pipelines across runs.
+    static constexpr std::array<std::string_view, 4> UnchartedNdcSerials = {
+        "CUSA02320", // US
+        "CUSA02343", // EU
+        "CUSA02344", // EU/RU
+        "CUSA02826",
+    };
+    static const json UnchartedNdcConfig = {
+        {"General", {{"redzone_patches", true}}},
+        {"GPU", {{"direct_memory_access_enabled", true}}},
+        {"Vulkan", {{"pipeline_cache_enabled", true}}},
+    };
+    if (std::ranges::find(UnchartedNdcSerials, serial) != UnchartedNdcSerials.end()) {
+        return &UnchartedNdcConfig;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+void EmulatorSettingsImpl::ApplyGameConfig(const json& gj, std::vector<std::string>& changed) {
+    if (gj.contains("General"))
+        ApplyGroupOverrides(m_general, gj.at("General"), changed);
+    if (gj.contains("Log"))
+        ApplyGroupOverrides(m_log, gj.at("Log"), changed);
+    if (gj.contains("Debug"))
+        ApplyGroupOverrides(m_debug, gj.at("Debug"), changed);
+    if (gj.contains("Input"))
+        ApplyGroupOverrides(m_input, gj.at("Input"), changed);
+    if (gj.contains("Audio"))
+        ApplyGroupOverrides(m_audio, gj.at("Audio"), changed);
+    if (gj.contains("GPU"))
+        ApplyGroupOverrides(m_gpu, gj.at("GPU"), changed);
+    if (gj.contains("Vulkan"))
+        ApplyGroupOverrides(m_vulkan, gj.at("Vulkan"), changed);
+}
 
 void EmulatorSettingsImpl::PrintChangedSummary(const std::vector<std::string>& changed) {
     if (changed.empty()) {
@@ -399,45 +449,43 @@ bool EmulatorSettingsImpl::Load(const std::string& serial) {
             // Never reloads global settings. Only applies
             // game_specific_value overrides on top of the already-loaded
             // base configuration.
+            std::vector<std::string> changed;
+
+            // Built-in settings go first so that the user's per-game file can override them.
+            if (const json* builtin = FindBuiltInGameConfig(serial)) {
+                LOG_INFO(Config, "Applying built-in compatibility settings for {}", serial);
+                ApplyGameConfig(*builtin, changed);
+            }
+
             const auto gamePath =
                 Common::FS::GetUserPath(Common::FS::PathType::CustomConfigs) / (serial + ".json");
 
             if (!std::filesystem::exists(gamePath)) {
+                PrintChangedSummary(changed);
                 return false;
             }
 
             std::ifstream in(gamePath);
             if (!in) {
+                PrintChangedSummary(changed);
                 return false;
             }
 
             json gj;
             in >> gj;
 
-            std::vector<std::string> changed;
+            ApplyGameConfig(gj, changed);
 
-            if (gj.contains("General"))
-                ApplyGroupOverrides(m_general, gj.at("General"), changed);
-            if (gj.contains("Log"))
-                ApplyGroupOverrides(m_log, gj.at("Log"), changed);
-            if (gj.contains("Debug"))
-                ApplyGroupOverrides(m_debug, gj.at("Debug"), changed);
-            if (gj.contains("Input"))
-                ApplyGroupOverrides(m_input, gj.at("Input"), changed);
-            if (gj.contains("Audio"))
-                ApplyGroupOverrides(m_audio, gj.at("Audio"), changed);
-            if (gj.contains("GPU"))
-                ApplyGroupOverrides(m_gpu, gj.at("GPU"), changed);
-            if (gj.contains("Vulkan"))
-                ApplyGroupOverrides(m_vulkan, gj.at("Vulkan"), changed);
-
-            // Backwards compat for red-zone setting
+            // Backwards compat for red-zone setting. Only applies to this game, so it must be a
+            // game-specific value rather than the base value that is saved to config.json.
             if (gj.contains("WindowsGuestRedZoneProtection") &&
                 gj["WindowsGuestRedZoneProtection"].contains(
-                    "windows_guest_red_zone_protection_mode")) {
-                m_general.redzone_patches = static_cast<bool>(
+                    "windows_guest_red_zone_protection_mode") &&
+                !(gj.contains("General") && gj["General"].contains("redzone_patches"))) {
+                m_general.redzone_patches.set(
                     gj["WindowsGuestRedZoneProtection"]["windows_guest_red_zone_protection_mode"] ==
-                    "StaticPatching");
+                        "StaticPatching",
+                    true);
             }
 
             PrintChangedSummary(changed);
