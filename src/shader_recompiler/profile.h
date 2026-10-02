@@ -52,6 +52,10 @@ struct Profile {
     bool needs_unorm_fixup{};
     bool needs_clip_distance_emulation{};
     bool supports_shader_stencil_export{};
+    // Emulator settings that change the generated SPIR-V. They are part of the profile so that a
+    // pipeline cache built with different values is discarded instead of reused.
+    bool direct_memory_access{};
+    bool inline_fetch_shader{};
 
     bool operator==(const Profile&) const = default;
 };
