@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <utility>
 
 #include "common/adaptive_mutex.h"
@@ -32,6 +33,16 @@ public:
         gpu.Fill(0ULL);
     }
     explicit RegionManager() = default;
+
+    /// Returns a counter that advances every time a page becomes CPU modified in any region.
+    /// If it hasn't changed, no new CPU modifications have to be uploaded since it was last read.
+    static u64 CpuModifiedEpoch() noexcept {
+        return cpu_modified_epoch.load(std::memory_order_acquire);
+    }
+
+    static void AdvanceCpuModifiedEpoch() noexcept {
+        cpu_modified_epoch.fetch_add(1, std::memory_order_acq_rel);
+    }
 
     void SetCpuAddress(VAddr new_cpu_addr) {
         cpu_addr = new_cpu_addr;
@@ -190,6 +201,11 @@ private:
                 cpu[index] |= mask;
             }
             write_prot[index] = (cpu[index] ^ prev) & mask;
+            if constexpr (cpu_op == StateOp::Set) {
+                if (write_prot[index] != 0) {
+                    AdvanceCpuModifiedEpoch();
+                }
+            }
         }
         if constexpr (gpu_op != StateOp::None) {
             const u64 prev = gpu[index];
@@ -265,6 +281,8 @@ private:
             return gpu;
         }
     }
+
+    static inline std::atomic<u64> cpu_modified_epoch{};
 
     PageManager* tracker;
     VAddr cpu_addr{};

@@ -211,6 +211,15 @@ bool BufferCache::IsRegionGpuModified(VAddr addr, size_t size) {
 
 void BufferCache::SynchronizeDmaBuffers() {
     fault_process_pending = true;
+    // DMA shaders may read any resident memory, so every CPU modification has to be uploaded.
+    // Walking all resident ranges is expensive and is requested on every DMA draw or dispatch,
+    // so skip it when no page became CPU modified and nothing became resident since the last walk.
+    const u64 cpu_epoch = RegionManager::CpuModifiedEpoch();
+    if (dma_synced_cpu_epoch == cpu_epoch && dma_synced_resident_epoch == resident_epoch) {
+        return;
+    }
+    dma_synced_cpu_epoch = cpu_epoch;
+    dma_synced_resident_epoch = resident_epoch;
     for (const auto& range : resident_ranges) {
         const u64 page = range.start >> (ARENA_PAGE_BITS - block_shift);
         const VAddr device_addr = range.start << block_shift;
@@ -306,6 +315,7 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
         backing.memory = device_memory;
         backing.offset = memory_offset >> block_shift;
         resident_ranges.Add(backing);
+        ++resident_epoch;
 
         LOG_INFO(Render, "Making range start={}, end={} resident", backing.start, backing.end);
 
