@@ -15,6 +15,7 @@ path = [
     "documents/Screenshots/Linux/*",
     "documents/Screenshots/Windows/*",
     "documents/patches/uncharted-ndc/files.json",
+    "CLAUDE.md",
     "flake.lock",
     "scripts/ps4_names.txt",
     "src/dist/MacOSBundleInfo.plist.in",
