@@ -7,9 +7,11 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 Serials: `CUSA02320` (US), `CUSA02343` (EU), `CUSA02344` (EU/RU), `CUSA02826`.
 
-Status: boots to the main menu and plays the first Uncharted 1 cutscene. It is **not playable**
-yet: a `Device lost` error still follows the first cutscene. See
-[shadps4-emu/shadPS4#5038](https://github.com/shadps4-emu/shadPS4/issues/5038).
+Status: reached the main menu and the first Uncharted 1 cutscene, then hit `Device lost`.
+Upstream [shadps4-emu/shadPS4#5140](https://github.com/shadps4-emu/shadPS4/pull/5140), whose change
+is included here, traced that crash and the `m_gfxEopTick` assert to the flip interrupt being raised
+before the frame's EOP fence was written. Testers reported Uncharted 1 in-game without `Device lost`
+with it. See also [shadps4-emu/shadPS4#5038](https://github.com/shadps4-emu/shadPS4/issues/5038).
 
 ## What the emulator does for this game
 
@@ -20,6 +22,7 @@ custom config, a patch file or an internet connection.
 |---|---|
 | `GPU.direct_memory_access_enabled = true` | Compute shaders read constants through dynamic addresses. Without DMA they read garbage loop bounds and the GPU hangs about 10 seconds after boot. |
 | `GPU.async_pipeline_compilation = true` | New graphics pipelines are compiled on worker threads and their draws are skipped until they are ready, instead of stalling the GPU thread. Expect a few missing objects for a moment when a new effect first appears. |
+| `GPU.readbacks_mode = Precise` | The game reads on the CPU results the GPU wrote, to decide what to draw. With readbacks off the CPU never sees them and the world is missing. Costs some speed. |
 | `General.redzone_patches = true` | Windows only. Windows exception dispatch overwrites data that a game function keeps below the stack pointer, which crashes the main menu. |
 | `Vulkan.pipeline_cache_enabled = true` | Keeps compiled pipelines between runs, so later runs start with them already built. |
 
