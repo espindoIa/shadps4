@@ -95,13 +95,15 @@ public:
     void ChangeRegionState(u64 offset, u64 size) {
         RegionBits write_prot;
         RegionBits read_prot;
+        bool cpu_epoch_advanced = false;
         auto bounds = GetBounds(offset, size);
         Bounds watcher_bounds;
         if constexpr (locked) {
             mutex.lock();
         }
         IterateWords(bounds, [&](u64 index, u64 mask) {
-            UpdateStateAndProtection<cpu_op, gpu_op>(write_prot, read_prot, index, mask);
+            UpdateStateAndProtection<cpu_op, gpu_op>(write_prot, read_prot, index, mask,
+                                                    cpu_epoch_advanced);
         });
         const auto write_op = GetPageOp<Type::CPU>(cpu_op);
         const auto read_op = GetPageOp<Type::GPU>(gpu_op);
@@ -121,6 +123,7 @@ public:
         auto& state = GetRegionBits<type>();
         RegionBits write_prot;
         RegionBits read_prot;
+        bool cpu_epoch_advanced = false;
         u64 start_page{};
         u64 end_page{};
         auto bounds = GetBounds(offset, size);
@@ -131,7 +134,8 @@ public:
         IterateWords(bounds, [&](u64 index, u64 mask) {
             const u64 base_page = index * PAGES_PER_WORD;
             const u64 word = state[index] & mask;
-            UpdateStateAndProtection<cpu_op, gpu_op>(write_prot, read_prot, index, mask);
+            UpdateStateAndProtection<cpu_op, gpu_op>(write_prot, read_prot, index, mask,
+                                                    cpu_epoch_advanced);
             IteratePages(word, [&](u64 pages_offset, u64 pages_size) {
                 if (end_page == base_page + pages_offset) {
                     end_page += pages_size;
@@ -192,7 +196,7 @@ public:
 private:
     template <StateOp cpu_op, StateOp gpu_op>
     void UpdateStateAndProtection(RegionBits& write_prot, RegionBits& read_prot, u64 index,
-                                  u64 mask) {
+                                  u64 mask, bool& cpu_epoch_advanced) {
         if constexpr (cpu_op != StateOp::None) {
             const u64 prev = cpu[index];
             if constexpr (cpu_op == StateOp::Clear) {
@@ -202,8 +206,9 @@ private:
             }
             write_prot[index] = (cpu[index] ^ prev) & mask;
             if constexpr (cpu_op == StateOp::Set) {
-                if (write_prot[index] != 0) {
+                if (write_prot[index] != 0 && !cpu_epoch_advanced) {
                     AdvanceCpuModifiedEpoch();
+                    cpu_epoch_advanced = true;
                 }
             }
         }
