@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <array>
 #include <codecvt>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <nlohmann/json.hpp>
 #include <pugixml.hpp>
+#include "common/decoder.h"
 #include "common/elf_info.h"
 #include "common/logging/log.h"
 #include "common/path_util.h"
@@ -220,7 +224,78 @@ void ApplyPatchesFromXML(std::filesystem::path path) {
     }
 }
 
+namespace {
+
+/**
+ * Uncharted: The Nathan Drake Collection asserts that the end-of-pipe tick of an older frame was
+ * already written (ndlib/render/fg-draw-mgr.cpp:234) with "cmp qword [frameParams + 0xa08], 0"
+ * followed by "jne +0x3b". The GPU thread can fall behind the game while it compiles pipelines, so
+ * the check fires even though the frame completes shortly after. Turn the jne into a jmp.
+ * The site is found by decoding rather than by a fixed offset so it works on every game version,
+ * and nothing is written unless exactly one instruction pair matches.
+ */
+void PatchUnchartedEopTickAssert() {
+    static constexpr std::array<u8, 7> Tail = {0x08, 0x0A, 0x00, 0x00, 0x00, 0x75, 0x3B};
+    static constexpr u64 EopTickOffset = 0xa08;
+
+    auto* const base = reinterpret_cast<u8*>(g_eboot_address);
+    const u64 size = g_eboot_image_size;
+    u8* branch = nullptr;
+    u32 num_matches = 0;
+    for (u64 i = 4; i + Tail.size() <= size; ++i) {
+        if (base[i] != Tail[0] || std::memcmp(base + i, Tail.data(), Tail.size()) != 0) {
+            continue;
+        }
+        // REX.W 83 /7 ModRM [SIB] disp32 imm8, ending right where the jne starts.
+        for (const u64 start : {i - 3, i - 4}) {
+            ZydisDecodedInstruction inst;
+            ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
+            const auto status =
+                Common::Decoder::Instance()->decodeInstruction(inst, operands, base + start);
+            if (!ZYAN_SUCCESS(status) || inst.mnemonic != ZYDIS_MNEMONIC_CMP ||
+                start + inst.length != i + 5) {
+                continue;
+            }
+            const auto& mem = operands[0];
+            const auto& imm = operands[1];
+            if (mem.type != ZYDIS_OPERAND_TYPE_MEMORY || mem.size != 64 ||
+                mem.mem.disp.value != EopTickOffset || imm.type != ZYDIS_OPERAND_TYPE_IMMEDIATE ||
+                imm.imm.value.u != 0) {
+                continue;
+            }
+            branch = base + i + 5;
+            ++num_matches;
+            break;
+        }
+    }
+
+    if (num_matches != 1) {
+        LOG_WARNING(Loader, "EOP tick assert site not patched: found {} candidates", num_matches);
+        return;
+    }
+    *branch = 0xEB;
+    LOG_INFO(Loader, "Patched EOP tick assert at eboot+{:#x}", branch - base);
+}
+
+void ApplyBuiltInPatches() {
+    static constexpr std::array<std::string_view, 4> UnchartedNdcSerials = {
+        "CUSA02320",
+        "CUSA02343",
+        "CUSA02344",
+        "CUSA02826",
+    };
+    if (std::ranges::find(UnchartedNdcSerials, g_game_serial) != UnchartedNdcSerials.end()) {
+        PatchUnchartedEopTickAssert();
+    }
+}
+
+} // namespace
+
 void OnGameLoaded() {
+    if (EmulatorState::GetInstance()->IsAutoPatchesLoadEnabled()) {
+        ApplyBuiltInPatches();
+    }
+
     std::filesystem::path patch_dir = Common::FS::GetUserPath(Common::FS::PathType::PatchesDir);
     if (!patch_file.empty()) {
 
