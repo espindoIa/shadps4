@@ -86,10 +86,16 @@ memory), and `SynchronizeDmaBuffers` re-uploads CPU-modified pages.
 
 ## Uncharted: The Nathan Drake Collection
 
-Work in progress, not playable yet. `documents/Uncharted-NDC.md` covers the built-in settings
-(DMA, red zone patching, pipeline cache) and the EOP-assert patch in `documents/patches/uncharted-ndc/`. The
-remaining crash (`Device lost` after the first cutscene) needs logs from a real run. The branch
-`uncharted-validation` has an unmerged change to when Liverpool signals the flip interrupt.
+Work in progress. `documents/Uncharted-NDC.md` lists what is built in for it: per-game settings in
+`FindBuiltInGameConfig` (DMA, async pipeline compilation, red zone patching, pipeline cache) and an
+EOP-assert patch applied at load in `memory_patcher.cpp` (`ApplyBuiltInPatches`). Nothing needs to be
+downloaded. A `Device lost` after the first cutscene was reported before these changes and needs a
+log from a real run to diagnose.
+
+**Async pipeline compilation** (`GPU.async_pipeline_compilation`, off by default): `GraphicsPipeline`
+builds everything that reads live `Shader::Info`/runtime state on the GPU thread, then hands only the
+Vulkan create call to `PipelineWorkers`. `PipelineCache::GetGraphicsPipeline` returns `nullptr` (the
+draw is skipped) until `IsReady()`. Compute pipelines stay synchronous.
 
 ## Workflow preference
 

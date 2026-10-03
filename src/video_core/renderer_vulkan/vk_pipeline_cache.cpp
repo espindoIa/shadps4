@@ -326,6 +326,10 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
         .direct_memory_access = EmulatorSettings.IsDirectMemoryAccessEnabled(),
         .inline_fetch_shader = EmulatorSettings.IsInlineFetchShader(),
     };
+    // Compute pipelines stay synchronous: skipping a dispatch can corrupt data the game reads.
+    if (EmulatorSettings.IsAsyncPipelineCompilation() && !EmulatorSettings.IsShaderCollect()) {
+        pipeline_workers = std::make_unique<PipelineWorkers>(PipelineWorkers::DefaultThreadCount());
+    }
     WarmUp();
 
     auto [cache_result, cache] = instance.GetDevice().createPipelineCacheUnique({});
@@ -349,7 +353,7 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         GraphicsPipeline::SerializationSupport sdata{};
         it.value() = std::make_unique<GraphicsPipeline>(
             instance, scheduler, desc_heap, profile, graphics_key, *pipeline_cache, infos,
-            runtime_infos, fetch_shader, modules, sdata, false);
+            runtime_infos, fetch_shader, modules, sdata, false, pipeline_workers.get());
 
         RegisterPipelineData(graphics_key, pipeline_hash, sdata);
         ++num_new_pipelines;
@@ -362,6 +366,10 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
                 }
             }
         }
+    }
+    // With async compilation the draw is skipped until the pipeline exists.
+    if (!it->second->IsReady()) {
+        return nullptr;
     }
     return it->second.get();
 }

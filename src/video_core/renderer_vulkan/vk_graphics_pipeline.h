@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <atomic>
+#include <future>
+
 #include <boost/container/static_vector.hpp>
 #include <xxhash.h>
 
@@ -11,6 +14,7 @@
 #include "video_core/amdgpu/regs_depth.h"
 #include "video_core/amdgpu/regs_primitive.h"
 #include "video_core/renderer_vulkan/vk_pipeline_common.h"
+#include "video_core/renderer_vulkan/vk_pipeline_workers.h"
 
 namespace VideoCore {
 class BufferCache;
@@ -90,8 +94,13 @@ public:
                      std::span<const Shader::RuntimeInfo, MaxShaderStages> runtime_infos,
                      const Shader::Gcn::FetchShaderData* fetch_shader,
                      std::span<const vk::ShaderModule> modules, SerializationSupport& sdata,
-                     bool preloading);
+                     bool preloading, PipelineWorkers* workers = nullptr);
     ~GraphicsPipeline();
+
+    /// False while the pipeline is still being created on a pipeline worker.
+    bool IsReady() const noexcept {
+        return is_ready.load(std::memory_order_acquire);
+    }
 
     const Shader::Gcn::FetchShaderData& GetFetchShader() const noexcept {
         return fetch_shader;
@@ -114,6 +123,8 @@ private:
 private:
     GraphicsPipelineKey key;
     Shader::Gcn::FetchShaderData fetch_shader{};
+    std::atomic<bool> is_ready{};
+    std::future<void> build_task;
 };
 
 struct ClipDistanceShaderKey {

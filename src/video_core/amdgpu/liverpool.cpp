@@ -233,6 +233,9 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
         RESUME_GFX(ce_task);
     }
 
+    // Flip interrupts are raised once the whole DCB has run, so that the label and EOP packets the
+    // driver places after the flip NOP are visible to the interrupt handler.
+    u32 num_pending_flips{};
     const auto base_addr = reinterpret_cast<uintptr_t>(dcb.data());
     while (!dcb.empty()) {
         ProcessCommands();
@@ -264,9 +267,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
 
                 switch (nop->data_block[0]) {
                 case PM4CmdNop::PayloadType::PatchedFlip: {
-                    // There is no evidence that GPU CP drives flip events by parsing
-                    // special NOP packets. For convenience lets assume that it does.
-                    Platform::IrqC::Instance()->Signal(Platform::InterruptId::GfxFlip);
+                    ++num_pending_flips;
                     break;
                 }
                 case PM4CmdNop::PayloadType::DebugMarkerPush: {
@@ -850,6 +851,10 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
             dcb = NextPacket(dcb, header->type3.NumWords() + 1);
             break;
         }
+    }
+
+    for (; num_pending_flips > 0; --num_pending_flips) {
+        Platform::IrqC::Instance()->Signal(Platform::InterruptId::GfxFlip);
     }
 
     if (ce_task.handle) {

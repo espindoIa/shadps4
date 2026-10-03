@@ -789,12 +789,14 @@ TEST_F(EmulatorSettingsTest, BuiltInGameConfigAppliedWithoutUserFile) {
     EXPECT_TRUE(temp_settings->IsDirectMemoryAccessEnabled());
     EXPECT_TRUE(temp_settings->IsRedZonePatchingEnabled());
     EXPECT_TRUE(temp_settings->IsPipelineCacheEnabled());
+    EXPECT_TRUE(temp_settings->IsAsyncPipelineCompilation());
 
     // Built-in values are game-specific and never leak into the global base values.
     temp_settings->SetConfigMode(ConfigMode::Global);
     EXPECT_FALSE(temp_settings->IsDirectMemoryAccessEnabled());
     EXPECT_FALSE(temp_settings->IsRedZonePatchingEnabled());
     EXPECT_FALSE(temp_settings->IsPipelineCacheEnabled());
+    EXPECT_FALSE(temp_settings->IsAsyncPipelineCompilation());
 }
 
 TEST_F(EmulatorSettingsTest, BuiltInGameConfigCoversAllRegions) {
