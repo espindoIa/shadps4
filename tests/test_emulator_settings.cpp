@@ -790,6 +790,7 @@ TEST_F(EmulatorSettingsTest, BuiltInGameConfigAppliedWithoutUserFile) {
     EXPECT_TRUE(temp_settings->IsRedZonePatchingEnabled());
     EXPECT_TRUE(temp_settings->IsPipelineCacheEnabled());
     EXPECT_TRUE(temp_settings->IsAsyncPipelineCompilation());
+    EXPECT_EQ(temp_settings->GetReadbacksMode(), static_cast<u32>(GpuReadbacksMode::Precise));
 
     // Built-in values are game-specific and never leak into the global base values.
     temp_settings->SetConfigMode(ConfigMode::Global);

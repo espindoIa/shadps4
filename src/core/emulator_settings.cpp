@@ -102,6 +102,8 @@ const json* FindBuiltInGameConfig(std::string_view serial) {
     //   dispatch clobbers, crashing the main menu.
     // - Shader compilation stalls make the GPU thread fall behind the game's EOP tick checks, so
     //   persist pipelines across runs and compile new ones off the GPU thread.
+    // - The CPU reads results the GPU wrote to decide what to draw, so GPU writes must be read
+    //   back precisely or the world is missing.
     static constexpr std::array<std::string_view, 4> UnchartedNdcSerials = {
         "CUSA02320", // US
         "CUSA02343", // EU
@@ -110,7 +112,10 @@ const json* FindBuiltInGameConfig(std::string_view serial) {
     };
     static const json UnchartedNdcConfig = {
         {"General", {{"redzone_patches", true}}},
-        {"GPU", {{"direct_memory_access_enabled", true}, {"async_pipeline_compilation", true}}},
+        {"GPU",
+         {{"direct_memory_access_enabled", true},
+          {"async_pipeline_compilation", true},
+          {"readbacks_mode", static_cast<u32>(GpuReadbacksMode::Precise)}}},
         {"Vulkan", {{"pipeline_cache_enabled", true}}},
     };
     if (std::ranges::find(UnchartedNdcSerials, serial) != UnchartedNdcSerials.end()) {
