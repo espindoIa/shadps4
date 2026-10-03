@@ -289,18 +289,27 @@ void VideoOutDriver::DrawLastFrame() {
     }
 }
 
+bool VideoOutDriver::ReserveEopFlip(VideoOutPort* port) {
+    std::unique_lock lock{port->port_mutex};
+    if (port->flip_status.flip_pending_num > 16) {
+        return false;
+    }
+    ++port->flip_status.gc_queue_num;
+    ++port->flip_status.flip_pending_num;
+    port->flip_status.submit_tsc = Libraries::Kernel::sceKernelReadTsc();
+    return true;
+}
+
 bool VideoOutDriver::SubmitFlip(VideoOutPort* port, s32 index, s64 flip_arg,
                                 bool is_eop /*= false*/) {
-    {
+    // EOP flips were already counted by ReserveEopFlip when the command buffer was submitted.
+    if (!is_eop) {
         std::unique_lock lock{port->port_mutex};
         if (index != -1 && port->flip_status.flip_pending_num > 16) {
             LOG_ERROR(Lib_VideoOut, "Flip queue is full");
             return false;
         }
 
-        if (is_eop) {
-            ++port->flip_status.gc_queue_num;
-        }
         ++port->flip_status.flip_pending_num; // integral GPU and CPU pending flips counter
         port->flip_status.submit_tsc = Libraries::Kernel::sceKernelReadTsc();
     }

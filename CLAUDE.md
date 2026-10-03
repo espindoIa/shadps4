@@ -87,10 +87,12 @@ memory), and `SynchronizeDmaBuffers` re-uploads CPU-modified pages.
 ## Uncharted: The Nathan Drake Collection
 
 Work in progress. `documents/Uncharted-NDC.md` lists what is built in for it: per-game settings in
-`FindBuiltInGameConfig` (DMA, async pipeline compilation, red zone patching, pipeline cache) and an
+`FindBuiltInGameConfig` (DMA, async pipeline compilation, precise readbacks, red zone patching,
+pipeline cache) and an
 EOP-assert patch applied at load in `memory_patcher.cpp` (`ApplyBuiltInPatches`). Nothing needs to be
-downloaded. A `Device lost` after the first cutscene was reported before these changes and needs a
-log from a real run to diagnose.
+downloaded. The flip interrupt is raised only after the whole flip DCB ran (upstream #5140), and EOP
+flips count as pending at submit time (`VideoOutDriver::ReserveEopFlip`); both keep the game from
+reading an EOP tick the GPU thread has not written yet.
 
 **Async pipeline compilation** (`GPU.async_pipeline_compilation`, off by default): `GraphicsPipeline`
 builds everything that reads live `Shader::Info`/runtime state on the GPU thread, then hands only the

@@ -90,6 +90,13 @@ public:
     int ChangeBufferAttribute(VideoOutPort* port, s32 bufferIndex,
                               const BufferAttribute* attribute);
 
+    /**
+     * Counts a flip submitted from a command buffer as pending, like the PS4 kernel does at submit
+     * time. Games read these counters to limit how many frames they queue ahead of the GPU, so
+     * counting the flip only once the GPU thread reaches it lets them run ahead.
+     * Returns false if the flip queue is full.
+     */
+    bool ReserveEopFlip(VideoOutPort* port);
     bool SubmitFlip(VideoOutPort* port, s32 index, s64 flip_arg, bool is_eop = false);
 
 private:
