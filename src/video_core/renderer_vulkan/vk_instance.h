@@ -266,6 +266,11 @@ public:
         return shader_clock && shader_clock_features.shaderSubgroupClock;
     }
 
+    /// Returns true when VK_EXT_device_fault is enabled on the device.
+    bool IsDeviceFaultSupported() const {
+        return device_fault && device_fault_features.deviceFault;
+    }
+
     /// Returns the vendor ID of the physical device
     u32 GetVendorID() const {
         return properties.vendorID;
@@ -497,6 +502,7 @@ private:
     vk::PhysicalDeviceImage2DViewOf3DFeaturesEXT image_2d_view_of_3d_features;
     vk::PhysicalDevicePrimitiveTopologyListRestartFeaturesEXT list_restart_features;
     vk::PhysicalDeviceShaderClockFeaturesKHR shader_clock_features;
+    vk::PhysicalDeviceFaultFeaturesEXT device_fault_features;
     vk::DriverIdKHR driver_id;
     vk::UniqueDebugUtilsMessengerEXT debug_callback{};
     std::string vendor_name;
@@ -533,6 +539,7 @@ private:
     bool image_2d_view_of_3d{};
     bool image_view_min_lod{};
     bool shader_clock{};
+    bool device_fault{};
     bool supports_memory_budget{};
     bool supports_block_texel_view{};
     u64 total_memory_budget{};

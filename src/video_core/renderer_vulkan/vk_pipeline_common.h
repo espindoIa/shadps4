@@ -57,6 +57,11 @@ public:
         return is_compute;
     }
 
+    /// Identifies the pipeline in logs and in the device lost report.
+    u64 GetDebugHash() const noexcept {
+        return debug_hash;
+    }
+
     using DescriptorWrites = std::vector<vk::WriteDescriptorSet>;
     void BindResources(DescriptorWrites& set_writes, const Shader::PushData& push_data) const;
 
@@ -73,6 +78,7 @@ protected:
     std::array<const Shader::Info*, Shader::MaxStageTypes> stages{};
     bool uses_push_descriptors{};
     bool is_compute;
+    u64 debug_hash{};
 };
 
 } // namespace Vulkan
