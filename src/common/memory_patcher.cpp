@@ -312,7 +312,14 @@ void PatchMemory(const patchInfo& patch) {
     }
 
     if (patch.patchMask == PatchMask::Mask) {
-        cheatAddress = reinterpret_cast<void*>(PatternScan(patch.offsetStr) + patch.maskOffset);
+        const uintptr_t baseAddress = PatternScan(patch.offsetStr);
+        if (baseAddress == 0) {
+            // Usually a different game version. Writing at the offset from null would crash.
+            LOG_ERROR(Loader, "PatternScan failed for patch {} with pattern: {}", patch.modNameStr,
+                      patch.offsetStr);
+            return;
+        }
+        cheatAddress = reinterpret_cast<void*>(baseAddress + patch.maskOffset);
     }
 
     if (patch.patchMask == PatchMask::Mask_Jump32) {
@@ -337,11 +344,8 @@ void PatchMemory(const patchInfo& patch) {
         }
         uintptr_t patchAddress = baseAddress + patch.maskOffset;
 
-        // Fills the original region (jumpSize bytes) with NOPs
-        std::vector<u8> nopBytes(jumpSize, 0x90);
-        std::memcpy(reinterpret_cast<void*>(patchAddress), nopBytes.data(), nopBytes.size());
-
-        // Use "Target" to locate the start of the code cave
+        // Use "Target" to locate the start of the code cave. Do this before touching the original
+        // region so a failed lookup leaves the game code intact.
         uintptr_t jump_target = PatternScan(patch.targetStr);
         if (jump_target == 0) {
             LOG_ERROR(Loader, "PatternScan failed to Target with pattern: {}", patch.targetStr);
@@ -362,6 +366,10 @@ void PatchMemory(const patchInfo& patch) {
             }
             payload.push_back(static_cast<u8>(byteVal));
         }
+
+        // Fills the original region (jumpSize bytes) with NOPs
+        std::vector<u8> nopBytes(jumpSize, 0x90);
+        std::memcpy(reinterpret_cast<void*>(patchAddress), nopBytes.data(), nopBytes.size());
 
         // Calculates the end of the code cave (where the return jump will be inserted)
         uintptr_t code_cave_end = jump_target + payload.size();
