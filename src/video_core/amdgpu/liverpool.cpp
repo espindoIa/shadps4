@@ -233,7 +233,9 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
         RESUME_GFX(ce_task);
     }
 
-    bool flip_signal_armed{};
+    // Flip interrupts are raised once the whole DCB has run, so that the label and EOP packets the
+    // driver places after the flip NOP are visible to the interrupt handler.
+    u32 num_pending_flips{};
     const auto base_addr = reinterpret_cast<uintptr_t>(dcb.data());
     while (!dcb.empty()) {
         ProcessCommands();
@@ -265,7 +267,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
 
                 switch (nop->data_block[0]) {
                 case PM4CmdNop::PayloadType::PatchedFlip: {
-                    flip_signal_armed = true;
+                    ++num_pending_flips;
                     break;
                 }
                 case PM4CmdNop::PayloadType::DebugMarkerPush: {
@@ -851,7 +853,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
         }
     }
 
-    if (flip_signal_armed) {
+    for (; num_pending_flips > 0; --num_pending_flips) {
         Platform::IrqC::Instance()->Signal(Platform::InterruptId::GfxFlip);
     }
 
