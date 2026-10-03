@@ -39,9 +39,18 @@ changes nothing unless exactly one matching site is found. Look for
 The first run still compiles every shader. Runs after that load the pipeline cache at startup and
 are smoother.
 
+## Device lost report
+
+If the GPU driver reports `VK_ERROR_DEVICE_LOST`, the emulator writes
+`user/log/device_lost_report.txt` before it stops. It lists the serial, the GPU and driver, the
+active GPU settings, the pipeline hash and shader hashes of the last 256 draws and dispatches
+(with whether they used DMA), and the `VK_EXT_device_fault` information when the driver offers it.
+The draws are recorded when the commands are recorded, not when the GPU runs them, so the faulting
+one can be older than the newest entries.
+
 ## Reporting results
 
-Attach `user/log/shad_log.txt` and include:
+Attach `user/log/shad_log.txt` (and `user/log/device_lost_report.txt` if it exists) and include:
 
 - game version (`APP_VER` in `sce_sys/param.sfo`) and region;
 - GPU and driver version;
