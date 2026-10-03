@@ -340,3 +340,22 @@ gtest_discover_tests(shadps4_http_test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     DISCOVERY_TIMEOUT 60
 )
+
+find_package(Threads REQUIRED)
+
+add_executable(shadps4_region_manager_test buffer_cache/test_region_manager.cpp)
+target_include_directories(shadps4_region_manager_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/buffer_cache/stubs
+    ${CMAKE_SOURCE_DIR}/src
+)
+target_compile_features(shadps4_region_manager_test PRIVATE cxx_std_23)
+target_link_libraries(shadps4_region_manager_test PRIVATE Threads::Threads)
+add_test(NAME RegionManagerEpoch COMMAND shadps4_region_manager_test)
+
+add_executable(shadps4_memory_pattern_test
+    ${CMAKE_SOURCE_DIR}/src/common/memory_pattern.cpp
+    common/test_memory_pattern.cpp
+)
+target_include_directories(shadps4_memory_pattern_test PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_features(shadps4_memory_pattern_test PRIVATE cxx_std_23)
+add_test(NAME MemoryPatternScan COMMAND shadps4_memory_pattern_test)

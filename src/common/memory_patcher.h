@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -46,7 +47,6 @@ void AddPatchToQueue(const patchInfo& patchToAdd);
 
 void PatchMemory(const patchInfo& patch);
 
-static std::vector<int32_t> PatternToByte(const std::string& pattern);
 uintptr_t PatternScan(const std::string& signature);
 
 } // namespace MemoryPatcher
