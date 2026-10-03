@@ -585,6 +585,9 @@ private:
             item.reset_game_specific(&group);
     }
 
+    /// Apply every section of a per-game config object as game-specific values.
+    void ApplyGameConfig(const nlohmann::json& gj, std::vector<std::string>& changed);
+
     static void PrintChangedSummary(const std::vector<std::string>& changed);
 
 public:

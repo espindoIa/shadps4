@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <algorithm>
+#include <limits>
+
 #include "common/alignment.h"
 #include "common/assert.h"
 #include "common/bit_field.h"
@@ -84,11 +87,17 @@ struct Buffer {
     }
 
     u32 NumDwords() const noexcept {
-        return Common::AlignUp(GetSize(), sizeof(u32)) >> 2;
+        return static_cast<u32>(Common::AlignUp(u64{GetSize()}, sizeof(u32)) >> 2);
     }
 
     u32 GetSize() const noexcept {
-        return stride == 0 ? num_records : (stride * num_records);
+        if (stride == 0) {
+            return num_records;
+        }
+        // Unbounded buffers are commonly described with num_records = 0xFFFFFFFF, so the product
+        // can exceed 32 bits. Saturate instead of wrapping to a small, bogus size.
+        const u64 size = u64{stride} * u64{num_records};
+        return static_cast<u32>(std::min<u64>(size, std::numeric_limits<u32>::max()));
     }
 
     u32 GetIndexStride() const noexcept {

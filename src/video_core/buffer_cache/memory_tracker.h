@@ -150,6 +150,8 @@ private:
         auto* new_manager = free_managers.back();
         new_manager->SetCpuAddress(base_cpu_addr);
         free_managers.pop_back();
+        // New regions start with every page marked as CPU modified.
+        RegionManager::AdvanceCpuModifiedEpoch();
         top_tier[page_index] = new_manager;
         return new_manager;
     }
