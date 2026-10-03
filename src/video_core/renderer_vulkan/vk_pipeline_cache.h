@@ -128,6 +128,9 @@ private:
     Shader::Profile profile{};
     Shader::Pools pools;
     DrawIndirectParams draw_indirect_params{};
+    // Declared before the pipelines so it outlives them: pipelines wait for their build on
+    // destruction, which needs the workers to still be running.
+    std::unique_ptr<PipelineWorkers> pipeline_workers;
     tsl::robin_map<size_t, std::unique_ptr<Program>> program_cache;
     tsl::robin_map<ComputePipelineKey, std::unique_ptr<ComputePipeline>> compute_pipelines;
     tsl::robin_map<GraphicsPipelineKey, std::unique_ptr<GraphicsPipeline>> graphics_pipelines;
