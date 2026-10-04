@@ -170,8 +170,10 @@ void BufferCache::DownloadMemory(const Buffer* arena, VAddr device_addr, u64 siz
 
 std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 size,
                                                         bool is_written, bool is_texel_buffer) {
-    // For read-only buffers use device local stream buffer to reduce renderpass breaks.
-    if (!is_written && size <= STREAM_THRESHOLD && !IsRegionGpuModified(device_addr, size)) {
+    // Texel reads may alias a GPU image or metadata and must synchronize through the arena.
+    // For other read-only buffers, use the stream buffer to reduce renderpass breaks.
+    if (!is_written && !is_texel_buffer && size <= STREAM_THRESHOLD &&
+        !IsRegionGpuModified(device_addr, size)) {
         const auto [data, offset] = stream_buffer.Map(size, instance.UniformMinAlignment());
         memory->CopySparseMemory(device_addr, data, size);
         stream_buffer.Commit();
@@ -182,9 +184,6 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
     const auto* arena = GetArena(first_block, last_block);
     EnsureResident(arena, first_block, last_block);
     SynchronizeMemory(arena, device_addr, size, is_written, is_texel_buffer);
-    if (is_texel_buffer && !is_written) {
-        SynchronizeMemoryFromImage(arena, device_addr, size);
-    }
     if (is_written) {
         gpu_modified_ranges.Add(device_addr, size);
     }

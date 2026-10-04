@@ -39,6 +39,21 @@ changes nothing unless exactly one matching site is found. Look for
 The first run still compiles every shader. Runs after that load the pipeline cache at startup and
 are smoother.
 
+## Buffer synchronization regression check
+
+Read-only texel buffers now use the arena synchronization path even when they are at or below
+the 16 KiB streaming threshold. A GPU image can hold newer data than guest RAM without the buffer
+tracker marking that range as GPU-modified. Streaming directly from RAM would then copy stale
+data. Image synchronization also runs only once per acquisition, removing a duplicate tiling
+or metadata-fill operation on the arena path. Ordinary small read-only buffers retain streaming.
+
+Run `python3 tests/buffer_cache/test_buffer_sync.py` on Linux with a C++23 compiler to check this
+without Windows or a GPU. The test compiles the production acquisition and synchronization
+methods with simulated dependencies, checks contents and synchronization counts, and enables
+AddressSanitizer and UndefinedBehaviorSanitizer by default. `CXX` and `CXXFLAGS` can override the
+compiler and flags. These checks do not establish Vulkan driver behavior or an FPS improvement
+in Uncharted; that still requires running the game.
+
 ## Device lost report
 
 If the GPU driver reports `VK_ERROR_DEVICE_LOST`, the emulator writes
