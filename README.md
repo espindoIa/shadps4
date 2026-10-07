@@ -3,6 +3,18 @@ SPDX-FileCopyrightText: 2026 shadPS4 Emulator Project
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
+## About this fork
+
+This repository is a fork of [shadps4-emu/shadPS4](https://github.com/shadps4-emu/shadPS4). The upstream README, credits and license text are retained below.
+
+At the documentation review snapshot (`5120bed36d3f`), the fork includes changes in emulator settings, Vulkan pipeline compilation/device-loss reporting, memory patching and buffer synchronization, with related tests. See [Uncharted: The Nathan Drake Collection](documents/Uncharted-NDC.md) for the existing game-specific notes and limitations. These changes are not a guarantee of compatibility, performance or complete gameplay.
+
+For build requirements, follow the checked-in guides for [Windows](documents/building-windows.md), [Linux](documents/building-linux.md), [macOS](documents/building-macos.md) or [Docker](documents/building-docker.md). For usage and debugging, see the upstream sections below. The core does not include the separate QtLauncher GUI.
+
+The fork and upstream have diverged; this documentation review does not merge or synchronize them. No emulator build, test suite or game session was run for this documentation change. Before sharing diagnostic logs, review them for private paths and other personal information; do not attach credentials or game/firmware binaries.
+
+---
+
 <h1 align="center">
   <br>
   <a href="https://shadps4.net/"><img src="https://github.com/shadps4-emu/shadPS4/blob/main/.github/shadps4.png" width="220"></a>
@@ -28,7 +40,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 | :-----------------------------------------------------------: | :--------------------------------------------------------------------------------------------: |
 | ![Bloodborne screenshot](./documents/Screenshots/1.png) | ![Project DIVA screenshot](./documents/Screenshots/2.png) |
 
-|                  Yakuza 0 by SEGA                     |                 DRIVECLUB™ by Evolution Studios                    |
+|                  Yakuza 0 by SEGA                     |                 DRIVECLUBT by Evolution Studios                    |
 | :------------------------------------------------------------------------: | :------------------------------------------------------------------: |
 | ![Yakuza screenshot](./documents/Screenshots/3.png) | ![DRIVECLUB screenshot](./documents/Screenshots/4.png) |
 
@@ -202,7 +214,7 @@ A few noteworthy teams/projects who've helped us along the way are:
 
 - **yuzu**: Our shader compiler has been designed with yuzu's Hades compiler as a blueprint. This allowed us to focus on the challenges of emulating a modern AMD GPU while having a high-quality optimizing shader compiler implementation as a base.
 
-- [**felix86**](https://github.com/OFFTKP/felix86): A new x86-64 → RISC-V Linux userspace emulator
+- [**felix86**](https://github.com/OFFTKP/felix86): A new x86-64  RISC-V Linux userspace emulator
 
 - [**emudev.org**](https://emudev.org/): A network of people interested in the documentation, emulation, simulation and re-implementation of hardware near extinction . Belongs to my friend skmp and me (shadow) also a member of it
 
